@@ -176,8 +176,9 @@ def main():
         print("WARNING: Ollama may not be ready, but continuing...")
     print()
 
-    # Create MQTT client
+    # Create MQTT client (using callback API v2)
     client = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
         client_id="jetson-inference-server",
         protocol=mqtt.MQTTv5
     )
