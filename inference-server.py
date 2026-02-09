@@ -96,16 +96,14 @@ def on_message(client, userdata, msg):
         # Validate prompt
         if not prompt or not prompt.strip():
             response = {
-                "id": request_id,
-                "from": "jetson-inference",
-                "to": requester,
-                "prompt": prompt,
+                "id": f"inf-{int(time.time())}-error",
+                "from": "jetson-coordinator",
+                "ref": request_id,
                 "model": model,
-                "timestamp": int(time.time()),
-                "elapsed_seconds": 0,
-                "success": False,
-                "output": None,
-                "error": "Empty prompt provided"
+                "response": "ERROR: Empty prompt provided",
+                "ts": int(time.time()),
+                "latency_ms": 0,
+                "error": True
             }
             client.publish(RESULT_TOPIC, json.dumps(response))
             print(f"  ✗ Empty prompt rejected")
@@ -117,26 +115,37 @@ def on_message(client, userdata, msg):
         result = run_inference(prompt, model)
         elapsed = time.time() - start_time
 
-        # Publish result
-        response = {
-            "id": request_id,
-            "from": "jetson-inference",
-            "to": requester,
-            "prompt": prompt,
-            "model": model,
-            "timestamp": int(time.time()),
-            "elapsed_seconds": round(elapsed, 2),
-            **result
-        }
-
-        client.publish(RESULT_TOPIC, json.dumps(response))
+        # Publish result in the correct format
+        latency_ms = int(elapsed * 1000)
 
         if result["success"]:
-            print(f"  ✓ Inference complete in {elapsed:.2f}s")
+            response = {
+                "id": f"inf-{int(time.time())}-result",
+                "from": "jetson-coordinator",
+                "ref": request_id,
+                "model": model,
+                "response": result["output"],
+                "ts": int(time.time()),
+                "latency_ms": latency_ms
+            }
+            print(f"  ✓ Inference complete in {elapsed:.2f}s ({latency_ms}ms)")
             output_preview = result['output'][:100] + "..." if len(result['output']) > 100 else result['output']
             print(f"  Output: {output_preview}")
         else:
+            # Error response format
+            response = {
+                "id": f"inf-{int(time.time())}-error",
+                "from": "jetson-coordinator",
+                "ref": request_id,
+                "model": model,
+                "response": f"ERROR: {result['error']}",
+                "ts": int(time.time()),
+                "latency_ms": latency_ms,
+                "error": True
+            }
             print(f"  ✗ Inference failed: {result['error']}")
+
+        client.publish(RESULT_TOPIC, json.dumps(response))
 
     except json.JSONDecodeError as e:
         print(f"  ✗ Invalid JSON: {e}")
