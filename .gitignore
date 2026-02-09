@@ -1,0 +1,15 @@
+# Agent runtime data
+tasks/
+logs/
+.counters/
+fleet.jsonl
+environment-profile.json
+
+# Secrets
+start-daemon.sh
+*.token
+
+# OS
+.DS_Store
+__pycache__/
+*.pyc
