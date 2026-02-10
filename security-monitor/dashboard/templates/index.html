@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Monitor</title>
+<style>
+/* ===================================================================
+   CSS Reset & Variables
+   =================================================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg-primary:   #0a0a0f;
+    --bg-card:      #12121a;
+    --bg-card-alt:  #1a1a28;
+    --bg-hover:     #1e1e2e;
+    --border:       #2a2a3a;
+    --text-primary: #e4e4ef;
+    --text-muted:   #8888a0;
+    --text-dim:     #55556a;
+    --accent-blue:  #3b82f6;
+    --accent-cyan:  #06b6d4;
+    --alert-red:    #ef4444;
+    --alert-amber:  #f59e0b;
+    --success-green:#22c55e;
+    --purple:       #a855f7;
+    --radius:       10px;
+    --radius-sm:    6px;
+    --shadow:       0 4px 24px rgba(0,0,0,0.4);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ===================================================================
+   Alert Banner
+   =================================================================== */
+#alert-banner {
+    display: none;
+    background: linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d);
+    color: #fecaca;
+    padding: 12px 24px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.3px;
+    animation: pulse-bg 2s ease-in-out infinite;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+#alert-banner.visible { display: block; }
+
+@keyframes pulse-bg {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.75; }
+}
+
+/* ===================================================================
+   Header
+   =================================================================== */
+header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 90;
+}
+#alert-banner.visible ~ header { position: relative; }
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.header-left h1 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+.header-left h1 .shield { font-size: 1.4rem; }
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.conn-indicator {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.conn-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.4s;
+    flex-shrink: 0;
+}
+.conn-dot.green  { background: var(--success-green); box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+.conn-dot.yellow { background: var(--alert-amber);   box-shadow: 0 0 8px rgba(245,158,11,0.4); }
+.conn-dot.red    { background: var(--alert-red);      box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+
+/* ===================================================================
+   Main Grid Layout
+   =================================================================== */
+.dashboard {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    grid-template-rows: auto auto auto;
+    gap: 20px;
+    padding: 24px 32px;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+/* ===================================================================
+   Cards
+   =================================================================== */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+.card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.card-header h2 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-muted);
+}
+.card-body { padding: 20px; }
+
+/* ===================================================================
+   Live Camera View
+   =================================================================== */
+.live-view {
+    grid-column: 1;
+    grid-row: 1;
+    position: relative;
+    min-height: 380px;
+}
+.live-view .card-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    position: relative;
+    background: #000;
+    min-height: 340px;
+}
+.live-view img {
+    max-width: 100%;
+    max-height: 480px;
+    object-fit: contain;
+    display: block;
+}
+.live-view .no-feed {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    text-align: center;
+    padding: 40px;
+}
+.live-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    padding: 20px 20px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+}
+.live-overlay span {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.45);
+    padding: 3px 10px;
+    border-radius: 4px;
+}
+
+/* ===================================================================
+   Event Feed
+   =================================================================== */
+.event-feed {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    max-height: 780px;
+}
+.event-feed .card-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+.event-feed .card-body::-webkit-scrollbar { width: 5px; }
+.event-feed .card-body::-webkit-scrollbar-track { background: var(--bg-card); }
+.event-feed .card-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.event-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    animation: fade-in 0.3s ease;
+}
+.event-item:hover { background: var(--bg-hover); }
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.event-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-card-alt);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    overflow: hidden;
+}
+.event-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.event-info { flex: 1; min-width: 0; }
+.event-info .event-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.event-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.badge-person  { background: rgba(59,130,246,0.2); color: var(--accent-blue); }
+.badge-vehicle { background: rgba(168,85,247,0.2); color: var(--purple); }
+.badge-animal  { background: rgba(245,158,11,0.2); color: var(--alert-amber); }
+.badge-unknown { background: rgba(136,136,160,0.2); color: var(--text-muted); }
+
+.event-confidence {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.event-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 3px;
+}
+
+.feed-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+/* ===================================================================
+   Timeline
+   =================================================================== */
+.timeline-section {
+    grid-column: 1;
+    grid-row: 2;
+}
+.timeline-chart {
+    width: 100%;
+    height: 160px;
+}
+
+/* ===================================================================
+   Stats Cards
+   =================================================================== */
+.stats-section {
+    grid-column: 1;
+    grid-row: 3;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+}
+.stat-card {
+    background: var(--bg-card-alt);
+    border-radius: var(--radius-sm);
+    padding: 18px;
+    text-align: center;
+    border: 1px solid var(--border);
+    transition: transform 0.15s, border-color 0.15s;
+}
+.stat-card:hover { transform: translateY(-2px); border-color: var(--accent-blue); }
+.stat-icon { font-size: 1.6rem; margin-bottom: 6px; }
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 4px;
+}
+.stat-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 8px;
+}
+.stat-sub {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+}
+
+/* ===================================================================
+   Camera Status
+   =================================================================== */
+.cameras-section {
+    grid-column: 2;
+    grid-row: 3;
+}
+.camera-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+.camera-item:last-child { border-bottom: none; }
+
+.cam-info { display: flex; flex-direction: column; gap: 3px; }
+.cam-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.cam-details {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+}
+.cam-status-badge {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.cam-online  { background: rgba(34,197,94,0.15); color: var(--success-green); }
+.cam-offline { background: rgba(239,68,68,0.15); color: var(--alert-red); }
+.cam-unknown-status { background: rgba(136,136,160,0.15); color: var(--text-muted); }
+
+.no-cameras {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+
+/* ===================================================================
+   Responsive
+   =================================================================== */
+@media (max-width: 900px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+        padding: 16px;
+    }
+    .event-feed {
+        grid-column: 1;
+        grid-row: auto;
+        max-height: 400px;
+    }
+    .cameras-section {
+        grid-column: 1;
+        grid-row: auto;
+    }
+    header { padding: 14px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Alert Banner -->
+<div id="alert-banner">
+    <span>&#9888;&#65039; HIGH ACTIVITY ALERT &mdash; More than 5 person detections in the last 5 minutes</span>
+</div>
+
+<!-- Header -->
+<header>
+    <div class="header-left">
+        <h1><span class="shield">&#128737;&#65039;</span> Security Monitor</h1>
+    </div>
+    <div class="header-right">
+        <div class="conn-indicator">
+            <span class="conn-dot" id="conn-dot"></span>
+            <span id="conn-label">Connecting...</span>
+        </div>
+        <span id="clock"></span>
+    </div>
+</header>
+
+<!-- Dashboard Grid -->
+<div class="dashboard">
+
+    <!-- Live Camera View -->
+    <div class="card live-view">
+        <div class="card-header">
+            <h2>Live Camera Feed</h2>
+            <span id="live-update-time" style="font-size:0.75rem; color:var(--text-dim);"></span>
+        </div>
+        <div class="card-body" id="live-body">
+            <div class="no-feed" id="no-feed-msg">
+                <div style="font-size:2.5rem; margin-bottom:12px; opacity:0.4;">&#128247;</div>
+                Waiting for camera feed...<br>
+                <span style="font-size:0.8rem;">Snapshots appear when detection events arrive</span>
+            </div>
+            <img id="live-img" src="" alt="Live feed" style="display:none;">
+            <div class="live-overlay" id="live-overlay" style="display:none;">
+                <span id="overlay-camera">cam-0</span>
+                <span id="overlay-res">--</span>
+                <span id="overlay-fps">-- FPS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Feed -->
+    <div class="card event-feed">
+        <div class="card-header">
+            <h2>Event Feed</h2>
+            <span id="event-count" style="font-size:0.78rem; color:var(--text-dim);">0 events</span>
+        </div>
+        <div class="card-body" id="event-list">
+            <div class="feed-empty" id="feed-empty">
+                No detection events yet.<br>
+                <span style="font-size:0.78rem;">Events appear here in real-time</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detection Timeline -->
+    <div class="card timeline-section">
+        <div class="card-header">
+            <h2>Detection Timeline (24h)</h2>
+        </div>
+        <div class="card-body">
+            <svg id="timeline-svg" class="timeline-chart" viewBox="0 0 800 160" preserveAspectRatio="none"></svg>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="card stats-section">
+        <div class="card-header">
+            <h2>Detection Statistics</h2>
+        </div>
+        <div class="card-body">
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">&#128694;</div>
+                    <div class="stat-value" id="stat-person">0</div>
+                    <div class="stat-label">Persons</div>
+                    <div class="stat-sub"><span id="stat-person-1h">0</span> last hour &middot; <span id="stat-person-24h">0</span> 24h</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#128663;</div>
+                    <div class="stat-value" id="stat-vehicle">0</div>
+                    <div class="stat-label">Vehicles</div>
+                    <div class="stat-sub"><span id="stat-vehicle-1h">0</span> last hour &middot; <span id="stat-vehicle-24h">0</span> 24h</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#128062;</div>
+                    <div class="stat-value" id="stat-animal">0</div>
+                    <div class="stat-label">Animals</div>
+                    <div class="stat-sub"><span id="stat-animal-1h">0</span> last hour &middot; <span id="stat-animal-24h">0</span> 24h</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#128200;</div>
+                    <div class="stat-value" id="stat-total">0</div>
+                    <div class="stat-label">Total</div>
+                    <div class="stat-sub">All time detections</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Status -->
+    <div class="card cameras-section">
+        <div class="card-header">
+            <h2>Camera Health</h2>
+        </div>
+        <div class="card-body" id="cameras-body">
+            <div class="no-cameras" id="no-cameras">
+                No cameras reporting yet.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* =====================================================================
+   State
+   ===================================================================== */
+let knownEventIds = new Set();
+let lastSnapshotUrl = '';
+let snapshotCounter = 0;
+
+/* =====================================================================
+   Utility helpers
+   ===================================================================== */
+function relativeTime(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 5)    return 'just now';
+    if (diff < 60)   return Math.floor(diff) + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+
+function typeIcon(type) {
+    const icons = { person: '\u{1F6B6}', vehicle: '\u{1F697}', animal: '\u{1F43E}' };
+    return icons[type] || '\u{2753}';
+}
+
+function typeBadgeClass(type) {
+    const m = { person: 'badge-person', vehicle: 'badge-vehicle', animal: 'badge-animal' };
+    return m[type] || 'badge-unknown';
+}
+
+function formatUptime(seconds) {
+    if (!seconds || seconds <= 0) return '--';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm';
+}
+
+/* =====================================================================
+   Clock
+   ===================================================================== */
+function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+        now.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + '  ' +
+        now.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* =====================================================================
+   Connection Status
+   ===================================================================== */
+function fetchConnection() {
+    fetch('/api/connection')
+        .then(r => r.json())
+        .then(data => {
+            const dot = document.getElementById('conn-dot');
+            const label = document.getElementById('conn-label');
+            const age = data.last_event_age_seconds;
+
+            if (!data.mqtt_connected) {
+                dot.className = 'conn-dot red';
+                label.textContent = 'MQTT Disconnected';
+            } else if (age === null || age > 300) {
+                dot.className = 'conn-dot red';
+                label.textContent = age === null ? 'No events yet' : 'Stale (' + Math.floor(age) + 's)';
+            } else if (age > 60) {
+                dot.className = 'conn-dot yellow';
+                label.textContent = 'Idle (' + Math.floor(age) + 's)';
+            } else {
+                dot.className = 'conn-dot green';
+                label.textContent = 'Connected';
+            }
+        })
+        .catch(() => {
+            document.getElementById('conn-dot').className = 'conn-dot red';
+            document.getElementById('conn-label').textContent = 'Server unreachable';
+        });
+}
+
+/* =====================================================================
+   Events Feed
+   ===================================================================== */
+function fetchEvents() {
+    fetch('/api/events?limit=20')
+        .then(r => r.json())
+        .then(data => {
+            const list = document.getElementById('event-list');
+            const emptyMsg = document.getElementById('feed-empty');
+            const countEl = document.getElementById('event-count');
+
+            countEl.textContent = data.total + ' events';
+
+            if (!data.events || data.events.length === 0) {
+                if (emptyMsg) emptyMsg.style.display = '';
+                return;
+            }
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            // Build new items only for unseen events
+            let hasNew = false;
+            const newIds = new Set(data.events.map(e => e.event_id));
+
+            // Check if we actually have new content
+            for (const e of data.events) {
+                if (!knownEventIds.has(e.event_id)) {
+                    hasNew = true;
+                    break;
+                }
+            }
+
+            if (!hasNew && list.children.length > 1) return;
+
+            // Rebuild list
+            let html = '';
+            for (const e of data.events) {
+                const isNew = !knownEventIds.has(e.event_id);
+                knownEventIds.add(e.event_id);
+
+                html += '<div class="event-item' + (isNew ? '' : '') + '">' +
+                    '<div class="event-thumb">' + typeIcon(e.type) + '</div>' +
+                    '<div class="event-info">' +
+                        '<div class="event-top">' +
+                            '<span class="event-badge ' + typeBadgeClass(e.type) + '">' + e.type + '</span>' +
+                            '<span class="event-confidence">' + (e.confidence * 100).toFixed(1) + '%</span>' +
+                        '</div>' +
+                        '<div class="event-meta">' +
+                            '<span>' + relativeTime(e.ts) + '</span>' +
+                            '<span>' + e.camera_id + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }
+            list.innerHTML = html;
+
+            // Cap known IDs to prevent memory growth
+            if (knownEventIds.size > 500) {
+                const arr = Array.from(knownEventIds);
+                knownEventIds = new Set(arr.slice(arr.length - 200));
+            }
+        })
+        .catch(() => {});
+}
+
+/* =====================================================================
+   Live Snapshot
+   ===================================================================== */
+function fetchSnapshot() {
+    snapshotCounter++;
+    const img = document.getElementById('live-img');
+    const noFeed = document.getElementById('no-feed-msg');
+    const overlay = document.getElementById('live-overlay');
+    const timeEl = document.getElementById('live-update-time');
+
+    const newSrc = '/api/snapshot?_t=' + Date.now();
+
+    // Use a temporary image to avoid flicker
+    const tmp = new Image();
+    tmp.onload = function() {
+        img.src = newSrc;
+        img.style.display = '';
+        if (noFeed) noFeed.style.display = 'none';
+        overlay.style.display = '';
+        timeEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    };
+    tmp.onerror = function() {
+        // keep existing image if any
+    };
+    tmp.src = newSrc;
+}
+
+/* =====================================================================
+   Stats
+   ===================================================================== */
+function fetchStats() {
+    fetch('/api/stats')
+        .then(r => r.json())
+        .then(data => {
+            const h = data.last_hour || {};
+            const d = data.last_24h || {};
+
+            document.getElementById('stat-person').textContent = d.person || 0;
+            document.getElementById('stat-vehicle').textContent = d.vehicle || 0;
+            document.getElementById('stat-animal').textContent = d.animal || 0;
+            document.getElementById('stat-total').textContent = data.total_all_time || 0;
+
+            document.getElementById('stat-person-1h').textContent = h.person || 0;
+            document.getElementById('stat-person-24h').textContent = d.person || 0;
+            document.getElementById('stat-vehicle-1h').textContent = h.vehicle || 0;
+            document.getElementById('stat-vehicle-24h').textContent = d.vehicle || 0;
+            document.getElementById('stat-animal-1h').textContent = h.animal || 0;
+            document.getElementById('stat-animal-24h').textContent = d.animal || 0;
+
+            // Alert banner
+            const banner = document.getElementById('alert-banner');
+            if (data.alert) {
+                banner.classList.add('visible');
+            } else {
+                banner.classList.remove('visible');
+            }
+        })
+        .catch(() => {});
+}
+
+/* =====================================================================
+   Timeline Chart (SVG)
+   ===================================================================== */
+function fetchTimeline() {
+    fetch('/api/events/timeline?hours=24')
+        .then(r => r.json())
+        .then(data => {
+            renderTimeline(data.timeline || []);
+        })
+        .catch(() => {});
+}
+
+function renderTimeline(timeline) {
+    const svg = document.getElementById('timeline-svg');
+    if (!timeline.length) {
+        svg.innerHTML = '<text x="400" y="85" text-anchor="middle" fill="#55556a" font-size="13">No data for the last 24 hours</text>';
+        return;
+    }
+
+    const W = 800, H = 160;
+    const padTop = 10, padBottom = 30, padLeft = 5, padRight = 5;
+    const chartH = H - padTop - padBottom;
+    const barCount = timeline.length;
+    const barW = Math.max(2, (W - padLeft - padRight) / barCount - 2);
+    const gap = 2;
+
+    const maxVal = Math.max(1, ...timeline.map(t => t.total));
+
+    // Color map for dominant type
+    const typeColor = {
+        person:  '#3b82f6',
+        vehicle: '#a855f7',
+        animal:  '#f59e0b',
+    };
+
+    let bars = '';
+    let labels = '';
+
+    for (let i = 0; i < barCount; i++) {
+        const t = timeline[i];
+        const x = padLeft + i * (barW + gap);
+        const barH = Math.max(0, (t.total / maxVal) * chartH);
+        const y = padTop + chartH - barH;
+
+        // Determine dominant type
+        let dominant = 'person';
+        let maxCount = 0;
+        for (const [typ, cnt] of Object.entries(t.by_type || {})) {
+            if (cnt > maxCount) { maxCount = cnt; dominant = typ; }
+        }
+        const color = t.total > 0 ? (typeColor[dominant] || '#3b82f6') : '#2a2a3a';
+
+        bars += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + barH +
+                '" rx="2" fill="' + color + '" opacity="0.85">' +
+                '<title>' + t.hour + ': ' + t.total + ' events</title></rect>';
+
+        // Hour labels every 3 hours
+        const hourNum = parseInt(t.hour.substring(11, 13), 10);
+        if (hourNum % 3 === 0) {
+            const lx = x + barW / 2;
+            labels += '<text x="' + lx + '" y="' + (H - 8) +
+                      '" text-anchor="middle" fill="#55556a" font-size="10">' +
+                      String(hourNum).padStart(2, '0') + ':00</text>';
+        }
+    }
+
+    // Y-axis guide lines
+    let guides = '';
+    for (let n = 0; n <= 4; n++) {
+        const gy = padTop + (chartH / 4) * n;
+        const val = Math.round(maxVal * (1 - n / 4));
+        guides += '<line x1="' + padLeft + '" y1="' + gy + '" x2="' + (W - padRight) +
+                  '" y2="' + gy + '" stroke="#2a2a3a" stroke-width="0.5"/>';
+        if (n === 0 || n === 4) {
+            guides += '<text x="' + (W - padRight + 2) + '" y="' + (gy + 4) +
+                      '" fill="#55556a" font-size="9" text-anchor="start">' + val + '</text>';
+        }
+    }
+
+    svg.innerHTML = guides + bars + labels;
+}
+
+/* =====================================================================
+   Cameras
+   ===================================================================== */
+function fetchCameras() {
+    fetch('/api/cameras')
+        .then(r => r.json())
+        .then(data => {
+            const body = document.getElementById('cameras-body');
+            const noCam = document.getElementById('no-cameras');
+
+            if (!data.cameras || data.cameras.length === 0) {
+                if (noCam) noCam.style.display = '';
+                return;
+            }
+            if (noCam) noCam.style.display = 'none';
+
+            let html = '';
+            for (const c of data.cameras) {
+                const statusClass = c.status === 'online' ? 'cam-online' :
+                                    c.status === 'offline' ? 'cam-offline' : 'cam-unknown-status';
+                html += '<div class="camera-item">' +
+                    '<div class="cam-info">' +
+                        '<div class="cam-name">' + c.camera_id + '</div>' +
+                        '<div class="cam-details">' +
+                            '<span>' + c.resolution + '</span>' +
+                            '<span>' + c.fps.toFixed(1) + ' FPS</span>' +
+                            '<span>Up ' + formatUptime(c.uptime_seconds) + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<span class="cam-status-badge ' + statusClass + '">' + c.status + '</span>' +
+                '</div>';
+
+                // Update live overlay with first camera info
+                document.getElementById('overlay-camera').textContent = c.camera_id;
+                document.getElementById('overlay-res').textContent = c.resolution;
+                document.getElementById('overlay-fps').textContent = c.fps.toFixed(1) + ' FPS';
+            }
+            body.innerHTML = html;
+        })
+        .catch(() => {});
+}
+
+/* =====================================================================
+   Polling loops
+   ===================================================================== */
+function startPolling() {
+    // Initial fetch
+    fetchConnection();
+    fetchEvents();
+    fetchSnapshot();
+    fetchStats();
+    fetchTimeline();
+    fetchCameras();
+
+    // Events: every 3 seconds
+    setInterval(fetchEvents, 3000);
+    setInterval(fetchSnapshot, 3000);
+
+    // Connection: every 5 seconds
+    setInterval(fetchConnection, 5000);
+
+    // Stats: every 10 seconds
+    setInterval(fetchStats, 10000);
+
+    // Cameras: every 15 seconds
+    setInterval(fetchCameras, 15000);
+
+    // Timeline: every 60 seconds
+    setInterval(fetchTimeline, 60000);
+}
+
+/* =====================================================================
+   Boot
+   ===================================================================== */
+document.addEventListener('DOMContentLoaded', startPolling);
+</script>
+</body>
+</html>
